@@ -86,3 +86,7 @@ credentials"}` for a bad token; 404 `{"error":"no such VM …"}`; 400 for a
 - Test with a real XCP-ng pool behind XO (statistics shape, `current_operations`
   during a start, the 202 and task of each action, a non-admin token).
 - Maybe: SSE events (`/rest/v0/events`) instead of polling; host statistics.
+
+## Next patch
+
+- Review minors: see `_lots/lot25/reviews/xen-orchestra-r2.md` (jeton absent de la liste non signalé, test deux vies d un jeton court, relectures de Forcer l arrêt pendant une pause). Unité CPU à confirmer sur un vrai pool.
