@@ -9,7 +9,7 @@ and an XO authentication token renewed before it expires.
 Unofficial, not affiliated with Vates, Xen Orchestra nor XCP-ng. **Never tested with a real device yet.**
 
 - User guide: [English](docs/en.md), [français](docs/fr.md).
-- Access: an authentication token of XO in the `authenticationToken` cookie; renewed with itself (no
+- Access: an authentication token of XO in the `authenticationToken` cookie; renewed with itself through the documented `POST /rest/v0/users/<id>/authentication_tokens` (no
   password) and given back to Gladys.
 - Safety: the VM actions are buttons, never switches; each one is decided on a fresh read of the VM,
   checked again right before its first byte, and shown as done only once a later read shows it.

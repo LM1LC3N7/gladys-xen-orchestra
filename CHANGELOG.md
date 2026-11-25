@@ -19,9 +19,8 @@ the notes of the version's GitHub Release.
 - Certificate of Xen Orchestra trusted in two clicks (or typed); a changed one
   stops everything until trusted again.
 - Authentication token of XO in the `authenticationToken` cookie; refused (401
-  of XO on the VM list): 6-bit salted mark in /data, never tried again until a
-  new token or the Test button. Renewed with itself before it expires (by the
-  time of XO) and given back to Gladys.
+  of XO on the VM list): 16-bit salted mark in /data, never tried again until a
+  new token or the Test button. Renewed with itself (`POST /rest/v0/users/<id>/authentication_tokens`) before it expires, by the time of XO, its expiry read again at a quarter of the time left (5 min to 12 h), and given back to Gladys.
 - VM buttons: Start allowed; Shut down, Force shutdown and Restart off by
   default. Decided on a fresh read, checked again right before sending, one
   per VM per 15 s; Start refused 1 min after a stop (guard written to /data

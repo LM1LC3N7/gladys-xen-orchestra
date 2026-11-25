@@ -2,7 +2,7 @@
 // What must survive a restart, in /data (the only writable place of the
 // container), in one small JSON file readable by the container user only:
 //   - the certificate pinned for each Xen Orchestra address (a public value);
-//   - a token refused by XO, as a 6-bit salted mark only (it can never tell
+//   - a token refused by XO, as a 16-bit salted mark only (it can never tell
 //     the token, it only says "the same one was refused");
 //   - the end of a 429 / 5xx pause, the time of the last read;
 //   - the stop guards: after a shutdown or forced shutdown of a VM, its Start
@@ -85,9 +85,13 @@ export function memoryStore(initial = null) {
   };
 }
 
-/** The 6-bit mark of a token with a salt (0 to 63): never enough to find it. */
+/**
+ * The 16-bit mark of a refused token with a salt (0 to 65535): it only says
+ * "the same one was refused"; a token of XO is 256 random bits, 16 of them
+ * never help to find it.
+ */
 export const tokenMark = (salt, token) =>
-  createHash('sha256').update(`${salt}\n${token}`, 'utf8').digest()[0] & 0x3f;
+  createHash('sha256').update(`${salt}\n${token}`, 'utf8').digest().readUInt16BE(0);
 
 export const newSalt = () => randomBytes(8).toString('hex');
 
@@ -128,7 +132,7 @@ export function normalizeMemory(raw, now) {
     /^[0-9a-f]{16}$/.test(r.salt) &&
     Number.isInteger(r.mark) &&
     r.mark >= 0 &&
-    r.mark < 64
+    r.mark < 65536
   ) {
     out.refused = { address: r.address, salt: r.salt, mark: r.mark };
   }

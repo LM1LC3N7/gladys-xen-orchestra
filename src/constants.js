@@ -34,9 +34,12 @@ export const PATHS = {
     `/rest/v0/backup-logs?fields=id,jobId,status,start,end&filter=${encodeURIComponent(`start:>${since}`)}&limit=${MAX_OBJECTS.logs + 1}`,
   /** 307 to /rest/v0/users/<id>: the id of the token's user. */
   me: '/rest/v0/users/me',
+  /**
+   * GET: the tokens of the user; POST with the current token: a new token for
+   * the same user (docs, "Creating a token": renew by calling the same endpoint
+   * with your existing token). Never the `me` alias (it answers 307).
+   */
   tokens: (userId) => `/rest/v0/users/${userId}/authentication_tokens`,
-  /** POST with the current token: a new token for the same user (docs, "Creating a token"). */
-  newToken: '/rest/v0/users/authentication_tokens',
 };
 
 /** Refresh interval (seconds). */
@@ -114,6 +117,8 @@ export const TIMINGS = {
   },
   /** The token of the configuration: its expiry read at most this often (secondary read). */
   tokenCheckEvery: 12 * 3_600_000,
+  /** ... and at least this often apart, whatever the life of the token. */
+  tokenCheckMin: 5 * 60_000,
   /** A token renewed but not kept by Gladys (setConfig failed): tried again this often. */
   tokenKeepRetry: 10 * 60_000,
   /** A secondary read refused (401/403): spaced, doubling up to this. */

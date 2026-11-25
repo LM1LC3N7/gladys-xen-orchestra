@@ -215,6 +215,10 @@ export const T = {
     'The token was renewed but Gladys could not keep the new one yet (tried again every 10 min); after a restart, the token you typed is used while it is valid.',
     "Le jeton a été renouvelé mais Gladys n'a pas encore pu garder le nouveau (réessayé toutes les 10 min) ; après un redémarrage, le jeton saisi est utilisé tant qu'il est valide.",
   ),
+  tokenUnreadable: both(
+    'The expiry of the token cannot be read (the token list of its user is refused or unreadable): it cannot be renewed in time. Give this user of XO the right to read its own tokens, or save a new token before it expires.',
+    "L'expiration du jeton est illisible (la liste des jetons de son utilisateur est refusée ou illisible) : il ne peut pas être renouvelé à temps. Donnez à cet utilisateur de XO le droit de lire ses propres jetons, ou enregistrez un nouveau jeton avant son expiration.",
+  ),
   tokenRenewFailed: (days, err) => {
     const what = failureWord(err);
     return both(

@@ -5,7 +5,7 @@
 //
 // Access: the token of the configuration in the `authenticationToken` cookie.
 // Refused (401 in the envelope of XO on the main read, the VM list): kept as a
-// 6-bit mark in /data, never tried again alone (a new token saved, or the Test
+// 16-bit mark in /data, never tried again alone (a new token saved, or the Test
 // button, tries again). A 401/403 on any other route is never a refusal.
 // The token is renewed before it expires (docs: a POST with the current token
 // creates a new one), and the new one is given back to Gladys (setConfig of
@@ -66,6 +66,16 @@ export class Refusal extends Error {
  */
 export const pausing = (err) =>
   err?.kind === 'rate' || (err?.kind === 'server' && !(err.status === 500 && err.xo));
+
+/** A token is renewed when this much of its life is left (half its life, 7 days at most). */
+export const renewAt = (life) => Math.min(life / 2, 7 * DAY);
+
+/**
+ * The next read of the expiry: a quarter of the time left before the renewal
+ * point, between 5 min and 12 h (a 12-hour token is read again within 1.5 h).
+ */
+export const nextCheck = (left, life) =>
+  clamp((left - renewAt(life)) / 4, TIMINGS.tokenCheckMin, TIMINGS.tokenCheckEvery);
 
 /** The power state a command reaches (undefined for a restart: its start time changes). */
 const WANTED = { start: 'Running', clean_shutdown: 'Halted', hard_shutdown: 'Halted' };
@@ -398,6 +408,12 @@ export class XoApp {
     if (accountChanged) {
       this.lastReadMono = -Infinity;
       this.holds.clear();
+    }
+    // Another token saved while running: the refusal kept was the old one's
+    // (the mark in /data only serves a restart).
+    if (previous.address !== undefined && previous.token !== c.token && this.memory.refused) {
+      this.memory.refused = null;
+      this.saveSoon().catch(() => {});
     }
     if (previous.address !== c.address) {
       this.inventory = { hosts: [], vms: [], srs: [], jobs: [] };
@@ -767,7 +783,7 @@ export class XoApp {
   async checkToken(client, generation) {
     const token = client.token;
     if (!token || token !== this.token()) return;
-    const check = this.tokenCheck?.token === token ? this.tokenCheck : { token };
+    const check = this.tokenCheck?.token === token ? this.tokenCheck : { token, failures: 0 };
     this.tokenCheck = check;
     if (check.due !== undefined && this.mono() < check.due) return;
     if (this.held('token')) return;
@@ -778,9 +794,13 @@ export class XoApp {
     });
     if (!this.current(generation)) return;
     if (!info) {
+      // Not readable (a user without the right to list its tokens, XO busy):
+      // tried again within the hour; said in the status after 2 failures.
+      check.failures = (check.failures ?? 0) + 1;
       check.due = this.mono() + Math.min(TIMINGS.tokenCheckEvery, 3_600_000);
       return;
     }
+    check.failures = 0;
     if (!info.found || info.expiration === undefined) {
       this.tokenExpiry = info.found ? { never: true } : undefined;
       return;
@@ -789,18 +809,21 @@ export class XoApp {
     const left = info.expiration - info.date;
     this.tokenExpiry = { left, at: this.mono() };
     const life = info.created !== undefined ? info.expiration - info.created : 30 * DAY;
-    if (left > Math.min(life / 2, 7 * DAY)) return;
-    await this.renewToken(client, generation);
+    if (left > renewAt(life)) {
+      check.due = this.mono() + nextCheck(left, life);
+      return;
+    }
+    await this.renewToken(client, generation, check.userId);
   }
 
-  async renewToken(client, generation) {
+  async renewToken(client, generation, userId) {
     const from = this.config.token;
     let fresh;
     try {
-      fresh = await client.renew();
+      fresh = await client.renew(userId);
     } catch (err) {
       if (['pin', 'nopin', 'aborted'].includes(err?.kind)) throw err;
-      if (err?.kind === 'rate') this.pause(err);
+      if (pausing(err)) this.pause(err);
       this.tokenTrouble = err;
       // Tried again at the next check (the token list is read again then).
       this.tokenCheck.due = this.mono() + Math.min(TIMINGS.tokenCheckEvery, 3_600_000);
@@ -810,14 +833,19 @@ export class XoApp {
     if (!this.current(generation) || this.config.token !== from) return;
     this.tokenTrouble = undefined;
     this.renewed = { from, to: fresh.token };
-    this.tokenExpiry =
-      fresh.expiration !== undefined && fresh.date !== undefined
-        ? { left: fresh.expiration - fresh.date, at: this.mono() }
-        : undefined;
+    const known = fresh.expiration !== undefined && fresh.date !== undefined;
+    this.tokenExpiry = known ? { left: fresh.expiration - fresh.date, at: this.mono() } : undefined;
+    const life =
+      fresh.expiration !== undefined && fresh.created !== undefined
+        ? fresh.expiration - fresh.created
+        : 30 * DAY;
     this.tokenCheck = {
       token: fresh.token,
-      userId: this.tokenCheck?.userId,
-      due: this.mono() + TIMINGS.tokenCheckEvery,
+      userId,
+      failures: 0,
+      due:
+        this.mono() +
+        (known ? nextCheck(fresh.expiration - fresh.date, life) : TIMINGS.tokenCheckMin),
     };
     // The next requests use the new token (the old one stays valid until it expires).
     this.client = null;
@@ -838,7 +866,19 @@ export class XoApp {
       if (this.renewed === renewed) this.armKeep(TIMINGS.tokenKeepRetry);
       return;
     }
-    if (this.renewed !== renewed) return;
+    if (this.renewed !== renewed) {
+      // Another token was saved by the user while this write was in flight:
+      // theirs is written back (never left overwritten by the renewed one).
+      const typed = this.config.token;
+      if (!this.closed && typed && typed !== renewed.to && typed !== renewed.from) {
+        await this.bounded(this.gladys.setConfig({ token: typed }), 5000).catch((err) =>
+          this.logger.warn(
+            `Xen Orchestra: the token saved could not be written back (${err?.message})`,
+          ),
+        );
+      }
+      return;
+    }
     // Gladys keeps the new token: it is the configuration's from now on.
     this.raw = { ...this.raw, token: renewed.to };
     this.config = { ...this.config, token: renewed.to };
@@ -1001,7 +1041,8 @@ export class XoApp {
         const ids = idsOf(this.gladys, 'host', h.uuid);
         const running = h.power === 'Running' ? 1 : h.power === 'Halted' ? 0 : undefined;
         add(ids.feature(FEATURES.HOST_RUNNING), running);
-        add(ids.feature(FEATURES.HOST_MEMORY), h.memoryUsage);
+        // A host that is not running uses no memory: unknown, not 0 %.
+        if (h.power === 'Running') add(ids.feature(FEATURES.HOST_MEMORY), h.memoryUsage);
       }
     }
     if (this.fresh.srs) {
@@ -1150,6 +1191,7 @@ export class XoApp {
     if (!c.error && this.online) {
       const left = this.tokenLeft();
       if (this.renewed) parts.push(T.tokenNotKept);
+      else if ((this.tokenCheck?.failures ?? 0) >= 2) parts.push(T.tokenUnreadable);
       else if (this.tokenTrouble && left !== undefined) {
         parts.push(T.tokenRenewFailed(Math.max(0, Math.floor(left / DAY)), this.tokenTrouble));
       }
@@ -1382,7 +1424,13 @@ export class XoApp {
         if (err instanceof Refusal) throw err;
         this.sideError(err);
         // No answer, or a success status not understood: maybe done.
-        const maybe = err?.sent && (!err.answered || (err.status >= 200 && err.status < 300));
+        // A 5xx without the envelope of XO (a proxy: 502, 503, 504) came after
+        // the request left: XO may have taken it.
+        const maybe =
+          err?.sent &&
+          (!err.answered ||
+            (err.status >= 200 && err.status < 300) ||
+            (err.kind === 'server' && !err.xo));
         if (maybe) {
           this.noteResult(T.result.unconfirmed(key));
           // Read again on the same session only (never another XO's VM).

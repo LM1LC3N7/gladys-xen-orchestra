@@ -30,24 +30,18 @@ Handoff document: what is done, what was decided, what comes next.
 credentials"}` for a bad token; 404 `{"error":"no such VM …"}`; 400 for a
   bad filter; `GET /users/me` answers 307 to `/users/<id>` (read, never
   followed); `GET /users/<id>/authentication_tokens` lists the tokens with
-  `expiration` and `created_at` (default life 30 days); `POST
-/users/authentication_tokens` with the token cookie creates a new one (201);
+  `expiration` and `created_at` (default life 30 days); `POST /users/authentication_tokens` with the token cookie creates a new one (201), but the Swagger marks
+  this route without an id deprecated (review r1): the module posts to `/users/<id>/authentication_tokens`;
   `fields` is ignored on the token list; the filter `start:>N` is accepted.
 - **Token, not password**: the brief asks for an XO token; Basic
-  authentication is never used. Renewal (docs: "renew by calling the same
-  endpoint with your existing token"): every 12 h the expiry is read from the
-  token list of the user (a secondary read; a 401/403 there is never a
-  refusal); when less than min(half the life, 7 days) is left by XO's Date
-  header, a new token is created with the current one and written back to the
+  authentication is never used. Renewal (docs: "renew by calling the same endpoint with your existing token"): the expiry is read from the token list of the user (a secondary read; a 401/403 there is never a refusal), again after a quarter of the time left before the renewal point, between 5 min and 12 h (review r1: a 12-hour token was read too late); when less than min(half the life, 7 days) is left by XO's Date header, a new token is created with the current one by `POST /rest/v0/users/<id>/authentication_tokens` (the id read from the 307 of `/users/me`, never followed; review r1). The list refused twice: the status says the token cannot be renewed in time and written back to the
   `token` field with `setConfig` (allowed by the core for schema keys, no
   config-updated echo). Failed: kept in memory only (never /data) and
   `setConfig` tried again every 10 min, never a second token for the same
-  renewal. The old token is not revoked (no documented route; it expires by
-  itself; the user can revoke it in XO).
+  renewal. The old token is not revoked (no documented route; it expires by itself; the user can revoke it in XO). Orphan tokens (a new one not kept before a restart, a renewal sent without answer) are said in the docs, with their description "Gladys Assistant (renewed)". A token saved by the user while the renewed one is being written is written back after it (review r1, race).
 - **Refusal**: only a 401 in the envelope of XO on the VM list (the main
   read). A 401 without the envelope (a proxy) is "not taken"; a 403 is "not
-  allowed" (RBAC). 6-bit salted mark in /data, lifted by another token or the
-  Test button.
+  allowed" (RBAC). 16-bit salted mark in /data (review r1; the fiche's 4-8 bits target human passwords, a token of XO is 256 random bits, 16 of them never help to find it), lifted by the Test button, and at once by another token saved while running (the mark only serves a restart).
 - **Start allowed, the stops behind options** (lot 25 brief: "démarrer une VM
   permis ; arrêt propre, arrêt forcé et redémarrage derrière une option
   désactivée par défaut, comme PiKVM"). No protective action here: the clean
@@ -67,13 +61,11 @@ credentials"}` for a bad token; 404 `{"error":"no such VM …"}`; 400 for a
   (forced), 10/30/90 s (restart).
 - **Pauses**: a 429, or a 5xx that is not a 500 in the envelope of XO, pauses
   every path (1 min to 6 h). A 500 of XO is an XAPI error about one object
-  (e.g. VM_BAD_POWER_STATE): it pauses nothing (one VM in error never holds the
-  others).
+  (e.g. VM_BAD_POWER_STATE): it pauses nothing (one VM in error never holds the others). The renewal POST pauses the same way. A 5xx without the envelope of XO (a proxy) on a VM action that left is "sent, without confirmation": the stop guard stays (review r1).
 - **Statistics**: `/vms/<id>/stats?granularity=seconds`, the newest non-null
-  sample; CPU = mean of the vCPU fractions (0..1) × 100; memory used =
+  sample; CPU = mean of the vCPU values, read in percent (review r1; the Swagger only calls the raw XAPI data source `cpu#` a fraction, while the REST dashboard example shows the same VMs at about 1 % and the stats examples at 0.1: consistent with percent; to confirm on a real pool), a vCPU outside 0..105 is unknown; memory used =
   (memory − memoryFree) / memory, only with `memoryFree` (guest tools). 10 VMs
-  per read in turn; a sample older than 5 min by XO's Date is dropped. A
-  halted VM has no CPU nor memory value (unknown, not 0).
+  per read in turn; a sample older than 5 min by XO's Date is dropped. A halted VM has no CPU nor memory value (unknown, not 0); nor has a host not running its memory used.
 - **Backups**: `/backup-jobs` and `/backup-logs?filter=start:>…` over 8 days by
   XO's Date (no Date: no window, nothing read). Last status includes a running
   one ("Running"); "last run successful" only from a finished run (success 1,

@@ -13,12 +13,12 @@ Devices to add from the Discovery (once the Scan is run):
 
 | Device  | Features                                                                                                                            |
 | ------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Host    | running (binary), memory used (%)                                                                                                   |
+| Host    | running (binary), memory used (%, only while it runs)                                                                               |
 | VM      | running (binary), power state (text), CPU (%), memory used (%), memory size (MB); Start, Shut down, Force shutdown, Restart buttons |
 | Storage | used (%), free and total space (GB); ISO libraries and removable devices are left out                                               |
 | Backup  | last run successful (binary), last run (text), hours since the last success                                                         |
 
-- CPU and memory used come from the XAPI statistics: up to 10 running VMs per read, in turn (with 30
+- CPU (the percent per vCPU given by the API, mean of the vCPUs) and memory used come from the statistics: up to 10 running VMs per read, in turn (with 30
   running VMs, each is read every 3 reads). A sample older than 5 minutes (by the time of XO) is not
   published. Without the guest tools, the memory used stays unknown (never 0).
 - Backups: the runs started within the last 8 days (by the time of XO). A job without a success in that
@@ -44,15 +44,18 @@ Devices to add from the Discovery (once the Scan is run):
 - It is kept by Gladys in its database, never shown again, sent only to Xen Orchestra (in the
   `authenticationToken` cookie) and only once its certificate is checked. It is in no log, nor in `/data`,
   nor in the status.
-- **Renewal**: every 12 h, the integration reads the expiry of the token (by the time of XO, never the
-  container's). When less than half its life, or less than 7 days, is left, it asks XO for a new token with
-  the current one (the method documented by XO, no password) and gives it to Gladys, which keeps it instead
-  of the old one. The old one stays valid in XO until its own expiry (you can revoke it in XO). If Gladys
+- **Renewal**: the integration reads the expiry of the token from the token list of its user (`GET /rest/v0/users/<id>/authentication_tokens`), by the time of XO, never the container's, at most every 12 h and at least 5 min apart: the next read comes at a quarter of the time left before the renewal (a 12-hour token is read again within an hour and a half). When less than half its life, or less than 7 days, is left, it asks XO for a new token with the current one, through the route documented by XO (`POST /rest/v0/users/<id>/authentication_tokens`, no password; the `me` alias, which answers with a redirection, is never followed), and gives it to Gladys, which keeps it instead of the old one. If that list is refused twice (a user without that right), the status says so: the token cannot be renewed in time. If Gladys
   cannot keep the new one, it is used in memory and tried again every 10 minutes; after a restart, the
   token you typed is used while it is valid. Without a readable time of XO, the token is never taken for
   expiring.
+- **Tokens left in XO**: the old token stays valid in XO until its own expiry. A new token can also be
+  left orphan when Gladys could not keep it before a restart, or when the renewal left without an answer.
+  They carry the description "Gladys Assistant (renewed)": revoke them in XO (your user, Authentication
+  tokens).
+- If you save another token while the renewed one is being written, Gladys keeps yours (it is written back).
+- A new token saved lifts a refusal at once.
 - **Refusal**: if XO answers 401 in its own envelope to the read of the VMs, the token is refused: nothing
-  is tried again (a 6-bit mark, never the token, is kept in `/data`) until you save another token or click
+  is tried again (a 16-bit mark, never the token, is kept in `/data`) until you save another token or click
   **Test the connection**. A 401 or 403 on another route (hosts, backups, statistics, token list) or a 401
   without the envelope of XO (a proxy) is not a refusal.
 
@@ -74,8 +77,7 @@ Devices to add from the Discovery (once the Scan is run):
   its option is off or a command is running).
 - A command is sent within 3.5 s of the click or not at all (Gladys waits 5 s). It is shown as **done** only
   once a later read shows it (power state, or a new start time for a restart); reads follow (5 s, 20 s, then
-  further apart). A read equal to the state before is "not applied yet". Sent without an answer: "sent,
-  without confirmation", never sent again by itself. Not sent: "nothing sent". The result shows in the
+  further apart). A read equal to the state before is "not applied yet". Sent without a clear answer (time out, or 502, 503, 504 of a proxy): "sent, without confirmation", guard kept, never sent again by itself. Not sent: "nothing sent". The result shows in the
   status of the integration for 10 minutes.
 - Start is refused when: the integration is not configured, the certificate is not pinned, the token is
   refused, XO asked to wait, a newer stop of the same VM came, within the one-minute guard after a stop, a

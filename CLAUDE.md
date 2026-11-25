@@ -59,7 +59,7 @@ scripts/mutants.mjs               mutants of the guards (list and runner)
   connection whose certificate is the pinned one, checked before the first
   byte; never logged, never in /data, a status nor an error. The renewed token
   goes back to Gladys (`setConfig`), memory only meanwhile.
-- A 401 in the envelope of XO on the VM list refuses the token (6-bit mark in
+- A 401 in the envelope of XO on the VM list refuses the token (16-bit mark in
   /data); a 401/403 elsewhere never does.
 - Clocks: monotonic for every decision; wall time only for /data; XO's Date
   header for the ages of XO's data and the token expiry.

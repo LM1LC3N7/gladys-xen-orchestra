@@ -172,10 +172,12 @@ test('logOf: a run needs its job, an id and a start; an end before its start is 
 test('statsOf: the newest samples, gaps skipped, nonsense refused', () => {
   const s = statsOf({
     endTimestamp: 100,
-    stats: { cpus: { 0: [0.5, null], 1: [0.1, 0.3] }, memory: [100], memoryFree: [25] },
+    stats: { cpus: { 0: [50, null], 1: [10, 30] }, memory: [100], memoryFree: [25] },
   });
   assert.deepEqual(s, { cpu: 40, memory: 75, at: 100_000 });
-  assert.equal(statsOf({ stats: { cpus: { 0: [2] } } }).cpu, undefined);
+  assert.equal(statsOf({ stats: { cpus: { 0: [200] } } }).cpu, undefined);
+  assert.equal(statsOf({ stats: { cpus: { 0: [0.8] } } }).cpu, 0.8);
+  assert.equal(statsOf({ stats: { cpus: { 0: [-1] } } }).cpu, undefined);
   assert.equal(statsOf({ stats: { memory: [100], memoryFree: [200] } }).memory, undefined);
   assert.throws(() => statsOf([]), /not statistics/);
 });

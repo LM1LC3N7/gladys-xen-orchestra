@@ -404,3 +404,14 @@ test('the read of the VM answered too slowly: nothing sent, acked within the bud
   assert.equal(res.success, false);
   assert.equal(posts(ctx).length, 0);
 });
+
+test('a 502 of a proxy after the stop left: "sent, without confirmation", guard kept, reads follow', async (t) => {
+  const ctx = await online(t, { config: ALL_ON });
+  ctx.xo.replyFor = (r) => (r.method === 'POST' ? { status: 502, body: 'Bad Gateway' } : undefined);
+  const res = await within(ctx.press(1, 'shutdown'), 'ack');
+  assert.equal(res.success, false);
+  assert.match(res.error, /Sent, without confirmation/);
+  assert.ok(ctx.app.guardLeft(uuid(1)) > 0, 'the stop may be done: the guard stays');
+  assert.ok(ctx.store.data.stopGuards[uuid(1)]);
+  assert.equal(posts(ctx).length, 1);
+});

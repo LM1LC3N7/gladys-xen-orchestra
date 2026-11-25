@@ -13,12 +13,12 @@ Des appareils à ajouter depuis la Découverte (une fois le Scan lancé) :
 
 | Appareil   | Fonctions                                                                                                                                                         |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hôte       | en marche (binaire), mémoire utilisée (%)                                                                                                                         |
+| Hôte       | en marche (binaire), mémoire utilisée (%, seulement s'il est en marche)                                                                                           |
 | VM         | allumée (binaire), état d'alimentation (texte), processeur (%), mémoire utilisée (%), taille mémoire (Mo) ; boutons Démarrer, Arrêter, Forcer l'arrêt, Redémarrer |
 | Stockage   | utilisé (%), espace libre et total (Go) ; les bibliothèques ISO et les supports amovibles sont laissés de côté                                                    |
 | Sauvegarde | dernière exécution réussie (binaire), dernière exécution (texte), heures depuis la dernière réussite                                                              |
 
-- Le processeur et la mémoire utilisée viennent des statistiques de XAPI : 10 VM allumées au plus par
+- Le processeur (pourcentage par vCPU donné par l'API, moyenne des vCPU) et la mémoire utilisée viennent des statistiques : 10 VM allumées au plus par
   lecture, à tour de rôle (avec 30 VM allumées, chacune est relue toutes les 3 lectures). Un échantillon de
   plus de 5 minutes (selon l'heure de XO) n'est pas publié. Sans les outils invités, la mémoire utilisée
   reste inconnue (jamais 0).
@@ -47,15 +47,18 @@ Des appareils à ajouter depuis la Découverte (une fois le Scan lancé) :
 - Il est gardé par Gladys dans sa base, jamais réaffiché, envoyé seulement à Xen Orchestra (dans le cookie
   `authenticationToken`) et seulement une fois son certificat vérifié. Il n'apparaît ni dans les journaux,
   ni dans `/data`, ni dans le statut.
-- **Renouvellement** : toutes les 12 h, l'intégration lit la date d'expiration du jeton (selon l'heure de
-  XO, jamais celle du conteneur). Quand il reste moins de la moitié de sa durée, ou moins de 7 jours, elle
-  demande à XO un nouveau jeton avec le jeton actuel (méthode documentée par XO, sans mot de passe) et le
-  donne à Gladys, qui le garde à la place de l'ancien. L'ancien reste valable dans XO jusqu'à sa propre
-  expiration (vous pouvez le révoquer dans XO). Si Gladys ne peut pas garder le nouveau, il est utilisé en
+- **Renouvellement** : l'intégration lit la date d'expiration du jeton dans la liste des jetons de son utilisateur (`GET /rest/v0/users/<id>/authentication_tokens`), selon l'heure de XO, jamais celle du conteneur, au plus toutes les 12 h et au moins à 5 min d'écart : la relecture suivante vient au quart du temps qui reste avant le renouvellement (un jeton de 12 h est relu dans l'heure et demie). Quand il reste moins de la moitié de sa durée, ou moins de 7 jours, elle demande à XO un nouveau jeton avec le jeton actuel, par la route documentée par XO (`POST /rest/v0/users/<id>/authentication_tokens`, sans mot de passe ; l'alias `me`, qui répond par une redirection, n'est jamais suivi), et le donne à Gladys, qui le garde à la place de l'ancien. Si cette liste est refusée deux fois (un utilisateur sans ce droit), le statut le dit : le jeton ne peut pas être renouvelé à temps. Si Gladys ne peut pas garder le nouveau, il est utilisé en
   mémoire et réessayé toutes les 10 minutes ; après un redémarrage, le jeton saisi sert tant qu'il est
   valable. Sans heure lisible de XO, le jeton n'est jamais considéré comme expirant.
+- **Jetons laissés dans XO** : l'ancien jeton reste valable dans XO jusqu'à sa propre expiration. Un nouveau
+  jeton peut aussi rester orphelin si Gladys n'a pas pu le garder avant un redémarrage, ou si le
+  renouvellement est parti sans réponse. Ils portent la description « Gladys Assistant (renewed) » :
+  révoquez-les dans XO (votre utilisateur, Jetons d'authentification).
+- Si vous enregistrez un autre jeton pendant que le jeton renouvelé est écrit, Gladys garde le vôtre (il est
+  réécrit).
+- Un nouveau jeton enregistré lève un refus tout de suite.
 - **Refus** : si XO répond 401 dans sa propre enveloppe à la lecture des VM, le jeton est refusé : rien
-  n'est réessayé (une marque de 6 bits, jamais le jeton, est gardée dans `/data`) jusqu'à l'enregistrement
+  n'est réessayé (une marque de 16 bits, jamais le jeton, est gardée dans `/data`) jusqu'à l'enregistrement
   d'un autre jeton ou un clic sur **Tester la connexion**. Un 401 ou 403 sur une autre route (hôtes,
   sauvegardes, statistiques, liste des jetons) ou un 401 sans l'enveloppe de XO (un proxy) n'est pas un
   refus.
@@ -79,8 +82,7 @@ Des appareils à ajouter depuis la Découverte (une fois le Scan lancé) :
 - Une commande est envoyée dans les 3,5 s après le clic ou pas du tout (Gladys attend 5 s). Elle n'est dite
   **faite** que lorsqu'une lecture suivante le montre (état d'alimentation, ou nouvelle heure de démarrage
   pour un redémarrage) ; des relectures suivent (5 s, 20 s, puis plus espacées). Une lecture égale à l'état
-  d'avant est « pas encore appliqué ». Partie sans réponse : « envoyée, sans confirmation », jamais renvoyée
-  d'elle-même. Pas partie : « rien envoyé ». Le résultat s'affiche dans le statut de l'intégration pendant
+  d'avant est « pas encore appliqué ». Partie sans réponse claire (délai dépassé, ou 502, 503, 504 d'un proxy) : « envoyée, sans confirmation », garde gardée, jamais renvoyée d'elle-même. Pas partie : « rien envoyé ». Le résultat s'affiche dans le statut de l'intégration pendant
   10 minutes.
 - Refus de Démarrer : intégration non configurée, certificat non épinglé, jeton refusé, pause demandée par
   XO, arrêt plus récent de la même VM, garde d'une minute après un arrêt, commande en cours sur la VM, moins

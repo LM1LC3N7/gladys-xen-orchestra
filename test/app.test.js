@@ -104,7 +104,7 @@ test('a running backup shows "Running" without changing the last result', async 
 test('statistics older than 5 min by the Date of XO are not published', async (t) => {
   const ctx = await online(t, {
     server: {
-      stats: { [uuid(1)]: { cpus: [0.5], memory: 1e9, memoryFree: 5e8, ageMs: 10 * 60_000 } },
+      stats: { [uuid(1)]: { cpus: [50], memory: 1e9, memoryFree: 5e8, ageMs: 10 * 60_000 } },
     },
   });
   assert.equal(stateOf(ctx, 'vm', 1, 'cpu_usage'), undefined);
@@ -113,7 +113,7 @@ test('statistics older than 5 min by the Date of XO are not published', async (t
 
 test('without guest tools (no memoryFree): the memory used stays unknown, never 0', async (t) => {
   const ctx = await online(t, {
-    server: { stats: { [uuid(1)]: { cpus: [0.2, 0.4], memory: 1e9, memoryFree: undefined } } },
+    server: { stats: { [uuid(1)]: { cpus: [20, 40], memory: 1e9, memoryFree: undefined } } },
   });
   assert.equal(stateOf(ctx, 'vm', 1, 'cpu_usage'), 30);
   assert.equal(stateOf(ctx, 'vm', 1, 'memory_usage'), undefined);
@@ -153,7 +153,7 @@ test('the token refused (401 of XO on the VM list): kept in /data as a mark, nev
   await until(ctx, () => ctx.app.blocked, 'refused');
   assert.match(statusText(ctx), /refused the token/);
   const mark = ctx.store.data.refused;
-  assert.ok(Number.isInteger(mark.mark) && mark.mark < 64);
+  assert.ok(Number.isInteger(mark.mark) && mark.mark < 65536);
   assert.doesNotMatch(JSON.stringify(ctx.store.data), new RegExp(TOKEN));
   const asked = ctx.xo.requests.length;
   await ctx.clock.advance(3_600_000);
@@ -385,4 +385,62 @@ test('stop() leaves no timer and no request behind', async (t) => {
   await ctx.clock.advance(3_600_000);
   assert.equal(ctx.xo.requests.length, asked);
   assert.equal(ctx.app.readTimer, undefined);
+});
+
+test('the CPU of a VM is read in percent: 40 % is 40, an idle 0.8 % is 0.8 (never 80)', async (t) => {
+  const ctx = await online(t, {
+    server: {
+      vms: [vm(1), vm(2)],
+      stats: {
+        [uuid(1)]: { cpus: [40, 40], memory: 1e9, memoryFree: 5e8 },
+        [uuid(2)]: { cpus: [0.8], memory: 1e9, memoryFree: 5e8 },
+      },
+    },
+  });
+  assert.equal(stateOf(ctx, 'vm', 1, 'cpu_usage'), 40);
+  assert.equal(stateOf(ctx, 'vm', 2, 'cpu_usage'), 0.8);
+});
+
+test('a host not running: its memory used is not published (unknown, not 0 %)', async (t) => {
+  const ctx = await online(t, {
+    server: {
+      hosts: [
+        {
+          id: uuid(101),
+          name_label: 'xcp-1',
+          power_state: 'Halted',
+          memory: { usage: 0, size: 32e9 },
+        },
+      ],
+    },
+  });
+  assert.equal(stateOf(ctx, 'host', 101, 'running'), 0);
+  assert.equal(stateOf(ctx, 'host', 101, 'memory_usage'), undefined);
+});
+
+test('Retry-After without end: the pause and its timer are bounded to 6 h', async (t) => {
+  const ctx = await setup(t);
+  ctx.xo.replyFor = () => ({ status: 429, body: {}, headers: { 'retry-after': '999999999' } });
+  await until(ctx, () => ctx.app.paused(), 'paused');
+  assert.ok(ctx.app.pauseLeft() <= 6 * 3_600_000);
+  assert.ok(ctx.store.data.pausedUntil - ctx.clock.now() <= 6 * 3_600_000 + 1000);
+  ctx.xo.replyFor = undefined;
+  await ctx.clock.advance(6 * 3_600_000 + 1000);
+  await until(ctx, () => ctx.app.online, 'read again after 6 h at most', { step: 1000 });
+});
+
+test('a 503 on a secondary read (hosts) pauses every path', async (t) => {
+  const ctx = await setup(t);
+  ctx.xo.replyFor = (r) =>
+    r.path === '/rest/v0/hosts' ? { status: 503, body: 'busy' } : undefined;
+  await until(ctx, () => ctx.app.paused(), 'paused');
+  assert.ok(ctx.app.pauseLeft() >= 59_000);
+});
+
+test('another token saved while running lifts the refusal at once (never 1 time in 65536 kept)', async (t) => {
+  const ctx = await setup(t, { server: { tokens: new Map() } });
+  await until(ctx, () => ctx.app.blocked, 'refused');
+  const fresh = 'AnotherValidTokenForTheTests_0123456789abcd';
+  await within(ctx.gladys.fake.configUpdated({ ...ctx.raw, token: fresh }), 'config');
+  assert.equal(ctx.store.data.refused, null);
 });

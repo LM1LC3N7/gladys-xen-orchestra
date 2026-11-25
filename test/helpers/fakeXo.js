@@ -143,7 +143,8 @@ export async function fakeXo({ cert = certs.device, ...options } = {}) {
         body: [...xo.tokens].map(([id, t]) => ({ ...t, user_id: USER_ID, id })),
       };
     }
-    if (r.method === 'POST' && p === '/rest/v0/users/authentication_tokens') {
+    // The route without the user id is deprecated in the Swagger: this XO no longer has it.
+    if (r.method === 'POST' && p === `/rest/v0/users/${USER_ID}/authentication_tokens`) {
       const id = `Renewed${Math.random().toString(36).slice(2).padEnd(12, 'x')}_${xo.tokens.size}abcdefghijklmnop`;
       const now = xo.serverNow();
       const t = { created_at: now, expiration: now + 30 * DAY };
@@ -165,7 +166,8 @@ export async function fakeXo({ cert = certs.device, ...options } = {}) {
         if (target.power_state !== 'Running') {
           return { status: 422, body: { error: 'VM is halted' } };
         }
-        const s = xo.stats[target.id] ?? { cpus: [0.25, 0.75], memory: 2e9, memoryFree: 5e8 };
+        // cpus in percent per vCPU, memory in bytes.
+        const s = xo.stats[target.id] ?? { cpus: [25, 75], memory: 2e9, memoryFree: 5e8 };
         const end = Math.floor((xo.serverNow() - (s.ageMs ?? 0)) / 1000);
         return {
           status: 200,
@@ -173,7 +175,7 @@ export async function fakeXo({ cert = certs.device, ...options } = {}) {
             endTimestamp: end,
             interval: 5,
             stats: {
-              cpus: Object.fromEntries(s.cpus.map((c, i) => [String(i), [0.1, c]])),
+              cpus: Object.fromEntries(s.cpus.map((c, i) => [String(i), [10, c]])),
               memory: [s.memory, s.memory],
               ...(s.memoryFree === undefined ? {} : { memoryFree: [s.memoryFree, s.memoryFree] }),
             },

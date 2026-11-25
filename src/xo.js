@@ -488,9 +488,11 @@ const lastOf = (series) => {
 
 /**
  * The CPU (%, the mean of the vCPUs) and memory used (%) of the newest samples
- * of `/vms/<uuid>/stats` (XAPI RRD: `cpus` fractions 0..1 per vCPU, `memory`
- * and `memoryFree` in bytes; `memoryFree` only with the guest tools).
- * `endTimestamp` (s) dates the samples.
+ * of `/vms/<uuid>/stats`. The REST API gives `cpus` per vCPU in percent (its
+ * dashboard shows the same VMs at about 1 %, the stats examples at 0.1),
+ * `memory` and `memoryFree` in bytes (`memoryFree` only with the guest tools).
+ * A vCPU outside 0..105 % is not a measure. `endTimestamp` (s) dates the
+ * samples.
  */
 export function statsOf(json) {
   if (!isObject(json) || !isObject(json.stats)) {
@@ -501,8 +503,8 @@ export function statsOf(json) {
   let cpu;
   if (isObject(stats.cpus)) {
     const values = Object.values(stats.cpus).slice(0, 256).map(lastOf);
-    if (values.length > 0 && values.every((v) => v !== undefined && v >= 0 && v <= 1.05)) {
-      cpu = Math.round(Math.min(1, values.reduce((a, b) => a + b, 0) / values.length) * 1000) / 10;
+    if (values.length > 0 && values.every((v) => v !== undefined && v >= 0 && v <= 105)) {
+      cpu = Math.round(Math.min(100, values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10;
     }
   }
   const total = lastOf(stats.memory);
@@ -615,8 +617,9 @@ export function createXo({ host, port, pin, token, request, signal }) {
       return { found: true, expiration: num(mine.expiration), created: num(mine.created_at), date };
     },
     /** A new token for the same user, created with this one (docs: "renew"). */
-    renew: async (o) => {
-      const { json, status, date } = await call('POST', PATHS.newToken, {
+    renew: async (userId, o) => {
+      if (!uuidOf(userId)) throw new XoError('format', 'no user to renew the token of');
+      const { json, status, date } = await call('POST', PATHS.tokens(userId), {
         json: { description: 'Gladys Assistant (renewed)' },
         ...o,
       });
