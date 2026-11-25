@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-25
+
 ### Added
 
 - Xen Orchestra over its REST API (`/rest/v0`, HTTPS): hosts (running, memory
@@ -26,3 +28,6 @@ the notes of the version's GitHub Release.
   per VM per 15 s; Start refused 1 min after a stop (guard written to /data
   before sending); done only once a later read shows it.
 - 429/5xx pause (1 min to 6 h) kept in /data; the last read paces a restart.
+
+[Unreleased]: https://github.com/LM1LC3N7/gladys-xen-orchestra/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-xen-orchestra/releases/tag/v0.1.1

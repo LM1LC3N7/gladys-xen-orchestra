@@ -1,6 +1,6 @@
 {
   "name": "gladys-xen-orchestra",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Gladys Assistant external integration for Xen Orchestra / XCP-ng: hosts, VMs (state, CPU, memory), storage repositories and backup runs through the XO REST API over HTTPS with a pinned certificate; start a VM, shut down / force / restart behind options. Unofficial, not affiliated with Vates.",
   "type": "module",
