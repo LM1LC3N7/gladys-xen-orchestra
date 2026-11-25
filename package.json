@@ -1,8 +1,8 @@
 {
-  "name": "gladys-integration-template-js",
-  "version": "1.0.0",
+  "name": "gladys-xen-orchestra",
+  "version": "0.1.0",
   "private": true,
-  "description": "Official starter template to build an external integration for Gladys Assistant with the JavaScript SDK.",
+  "description": "Gladys Assistant external integration for Xen Orchestra / XCP-ng: hosts, VMs (state, CPU, memory), storage repositories and backup runs through the XO REST API over HTTPS with a pinned certificate; start a VM, shut down / force / restart behind options. Unofficial, not affiliated with Vates.",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -10,10 +10,16 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --test"
+    "test": "node --test --test-timeout=60000",
+    "audit": "npm audit --omit=dev",
+    "cover": "node scripts/cover.mjs"
   },
   "engines": {
     "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LM1LC3N7/gladys-xen-orchestra.git"
   },
   "dependencies": {
     "@gladysassistant/integration-sdk": "^0.16.1"

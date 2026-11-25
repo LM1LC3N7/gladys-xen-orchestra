@@ -1,177 +1,160 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "Xen Orchestra / XCP-ng",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Xen Orchestra and XCP-ng: hosts, VMs (state, CPU, memory), storage, backups; start a VM.",
+    "fr": "Xen Orchestra et XCP-ng : hôtes, VM (état, CPU, mémoire), stockages, sauvegardes ; démarrer une VM."
   },
-  "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "version": "0.1.0",
+  "docker_image": "ghcr.io/lm1lc3n7/gladys-xen-orchestra:0.1.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/LM1LC3N7/gladys-xen-orchestra/main/cover.png",
+  "categories": ["servers"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": { "en": "How it works", "fr": "Fonctionnement" },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Gladys reads your Xen Orchestra (XO) through its REST API, over HTTPS on your network, with an authentication token of XO: the hosts, the VMs (state, CPU, memory), the storage repositories and the last runs of the backup jobs, as devices to add from the Discovery. A VM can be started; shutting down, forcing the shutdown and restarting are each off until you allow them below. The token is renewed by the integration before it expires. Never tested with a real device. Unofficial integration, not affiliated with Vates, Xen Orchestra nor XCP-ng.",
+        "fr": "Gladys lit votre Xen Orchestra (XO) par son API REST, en HTTPS sur votre réseau, avec un jeton d'authentification de XO : les hôtes, les VM (état, CPU, mémoire), les stockages et les dernières exécutions des tâches de sauvegarde, comme appareils à ajouter depuis la Découverte. Une VM peut être démarrée ; l'arrêt, l'arrêt forcé et le redémarrage sont chacun désactivés tant que vous ne les autorisez pas plus bas. Le jeton est renouvelé par l'intégration avant son expiration. Jamais testé avec un vrai appareil. Intégration non officielle, sans lien avec Vates, Xen Orchestra ni XCP-ng."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://docs.xen-orchestra.com/restapi",
+          "label": { "en": "Xen Orchestra REST API", "fr": "API REST de Xen Orchestra" }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
+      "key": "host",
+      "type": "string",
+      "label": { "en": "Address of Xen Orchestra", "fr": "Adresse de Xen Orchestra" },
       "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+        "en": "Its IP address on your local network (or a host name), as you open its web interface. HTTPS only; add :port if it is not 443.",
+        "fr": "Son adresse IP sur votre réseau local (ou un nom d'hôte), comme pour ouvrir son interface web. HTTPS uniquement ; ajoutez :port si ce n'est pas 443."
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "placeholder": { "en": "e.g. 192.168.1.30", "fr": "ex. 192.168.1.30" },
+      "required": true
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+      "key": "certificate_fingerprint",
+      "type": "string",
+      "label": {
+        "en": "Certificate fingerprint (SHA-256, optional)",
+        "fr": "Empreinte du certificat (SHA-256, facultatif)"
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "description": {
+        "en": "Xen Orchestra often shows a self-signed certificate. Empty: click Trust the certificate twice after saving (the first click shows the fingerprint seen, nothing else is sent). Filled: only this certificate is accepted (the SHA-256 fingerprint shown by your browser). Nothing, the token neither, is sent to another certificate.",
+        "fr": "Xen Orchestra présente souvent un certificat auto-signé. Vide : cliquez deux fois sur Faire confiance au certificat après l'enregistrement (le premier clic montre l'empreinte vue, rien d'autre n'est envoyé). Rempli : seul ce certificat est accepté (l'empreinte SHA-256 affichée par votre navigateur). Rien, ni le jeton, n'est envoyé à un autre certificat."
+      },
+      "placeholder": {
+        "en": "e.g. AB:CD:…:EF (64 hex digits)",
+        "fr": "ex. AB:CD:…:EF (64 caractères hexa)"
+      },
+      "required": false
     },
     {
-      "key": "unit",
-      "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
+      "key": "token",
+      "type": "secret",
+      "label": { "en": "Authentication token of XO", "fr": "Jeton d'authentification de XO" },
+      "description": {
+        "en": "Created in XO (your user, Authentication tokens) or with xo-cli create-token. Prefer a user that only sees the VMs you want in Gladys. Kept by Gladys in its database, never shown again, sent only to Xen Orchestra, and only once its certificate is checked. Renewed before it expires: the new token replaces this one here (the old one stays valid in XO until its own expiry). If XO refuses it, Gladys stops until you save another one or click Test.",
+        "fr": "Créé dans XO (votre utilisateur, Jetons d'authentification) ou avec xo-cli create-token. Préférez un utilisateur qui ne voit que les VM voulues dans Gladys. Gardé par Gladys dans sa base, jamais réaffiché, envoyé seulement à Xen Orchestra, et seulement une fois son certificat vérifié. Renouvelé avant son expiration : le nouveau jeton remplace celui-ci ici (l'ancien reste valable dans XO jusqu'à sa propre expiration). Si XO le refuse, Gladys s'arrête jusqu'à l'enregistrement d'un autre ou un clic sur Tester."
+      },
+      "required": true
+    },
+    {
+      "key": "poll_interval",
+      "type": "number",
+      "label": { "en": "Refresh (seconds)", "fr": "Rafraîchissement (secondes)" },
+      "description": {
+        "en": "How often Gladys reads Xen Orchestra (a few requests, plus the CPU and memory of up to 10 running VMs in turn). 30 to 3600 seconds.",
+        "fr": "Fréquence de lecture de Xen Orchestra (quelques requêtes, plus le CPU et la mémoire de 10 VM allumées au plus, à tour de rôle). De 30 à 3600 secondes."
+      },
       "required": false,
-      "default": "celsius",
-      "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
-      ]
-    },
-    {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
-      "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
-      },
-      "required": false,
-      "default": 300,
-      "min": 60,
+      "default": 60,
+      "min": 30,
       "max": 3600
+    },
+    {
+      "key": "commands",
+      "type": "section",
+      "label": { "en": "VM buttons", "fr": "Boutons des VM" },
+      "description": {
+        "en": "Start needs no option. The three buttons below can stop a service of your home: each one is off by default, decided on a fresh read of the VM, checked again right before sending, one command per VM per 15 s, and Start is refused for 1 min after a shutdown. A command is shown as done only once a later read shows it.",
+        "fr": "Démarrer ne demande aucune option. Les trois boutons ci-dessous peuvent arrêter un service de la maison : chacun est désactivé par défaut, décidé sur une lecture fraîche de la VM, revérifié juste avant l'envoi, une commande par VM toutes les 15 s, et Démarrer est refusé 1 min après un arrêt. Une commande n'est dite faite que lorsqu'une lecture suivante le montre."
+      }
+    },
+    {
+      "key": "allow_shutdown",
+      "type": "boolean",
+      "label": { "en": "Allow shutting VMs down", "fr": "Autoriser l'arrêt des VM" },
+      "description": {
+        "en": "Off by default. On: the Shut down button asks the operating system of a running VM to shut down cleanly (needs its guest tools).",
+        "fr": "Désactivé par défaut. Activé : le bouton Arrêter demande au système d'une VM allumée de s'arrêter proprement (outils invités nécessaires)."
+      },
+      "required": false,
+      "default": false
+    },
+    {
+      "key": "allow_force_off",
+      "type": "boolean",
+      "label": { "en": "Allow forcing the shutdown", "fr": "Autoriser l'arrêt forcé" },
+      "description": {
+        "en": "Off by default. On: the Force shutdown button cuts the VM off at once, like pulling the plug (data not saved is lost).",
+        "fr": "Désactivé par défaut. Activé : le bouton Forcer l'arrêt coupe la VM immédiatement, comme débrancher la prise (les données non enregistrées sont perdues)."
+      },
+      "required": false,
+      "default": false
+    },
+    {
+      "key": "allow_reboot",
+      "type": "boolean",
+      "label": { "en": "Allow restarting VMs", "fr": "Autoriser le redémarrage des VM" },
+      "description": {
+        "en": "Off by default. On: the Restart button asks the operating system of a running VM to restart cleanly.",
+        "fr": "Désactivé par défaut. Activé : le bouton Redémarrer demande au système d'une VM allumée de redémarrer proprement."
+      },
+      "required": false,
+      "default": false
+    },
+    {
+      "key": "language",
+      "type": "select",
+      "label": { "en": "Language of names and messages", "fr": "Langue des noms et messages" },
+      "description": {
+        "en": "The names of the devices and features at their creation, the power states and the messages of the buttons.",
+        "fr": "Les noms des appareils et fonctions à leur création, les états d'alimentation et les messages des boutons."
+      },
+      "required": false,
+      "default": "fr",
+      "options": [
+        { "value": "fr", "label": { "en": "French", "fr": "Français" } },
+        { "value": "en", "label": { "en": "English", "fr": "Anglais" } }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
+      "key": "test_connection",
+      "label": { "en": "Test the connection", "fr": "Tester la connexion" },
+      "description": {
+        "en": "Reads the list of VMs, again only when the last read is older than the refresh; otherwise it says the last result. While the token is refused, it tries it again (once per 10 s).",
+        "fr": "Lit la liste des VM, de nouveau seulement quand la dernière lecture est plus ancienne que le rafraîchissement ; sinon il donne le dernier résultat. Tant que le jeton est refusé, il le réessaie (une fois par 10 s)."
+      },
       "timeout_seconds": 30
     },
     {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
-    }
-  ],
-  "scene_triggers": [
-    {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "trust_certificate",
+      "label": { "en": "Trust the certificate", "fr": "Faire confiance au certificat" },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+        "en": "Two clicks: the first shows the fingerprint of the certificate Xen Orchestra shows (nothing else is sent); compare it with your browser, then click again within 2 minutes to pin exactly that one. Also after a renewal of its certificate. Saving the configuration never does it.",
+        "fr": "Deux clics : le premier montre l'empreinte du certificat présenté par Xen Orchestra (rien d'autre n'est envoyé) ; comparez-la avec votre navigateur, puis cliquez de nouveau dans les 2 minutes pour épingler exactement celui-ci. Aussi après un renouvellement de son certificat. Enregistrer la configuration ne le fait jamais."
       },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
-        }
-      ],
-      "variables": [
-        {
-          "key": "target",
-          "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
-        }
-      ]
-    }
-  ],
-  "scene_actions": [
-    {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
-      },
-      "timeout_seconds": 15,
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ],
-      "outputs": [
-        {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
-        }
-      ]
-    }
-  ],
-  "widgets": [
-    {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
-      },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+      "timeout_seconds": 30
     }
   ]
 }
